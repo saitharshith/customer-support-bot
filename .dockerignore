@@ -1,0 +1,28 @@
+# Local environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Source-control and editor metadata
+.git/
+.vscode/
+
+# Development artifacts
+experiments.ipynb
+IBM-techqa-dataset/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Build and coverage output
+build/
+dist/
+*.egg-info/
+.coverage
+htmlcov/

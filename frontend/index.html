@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Support Agent</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .chat-container {
+            height: calc(100vh - 160px);
+        }
+
+        .chat-box {
+            height: 100%;
+            overflow-y: auto;
+            background: #ffffff;
+        }
+
+        .context-box {
+            height: 100%;
+            overflow-y: auto;
+            background: #ffffff;
+        }
+
+        .message-user {
+            background-color: #0d6efd;
+            color: white;
+            border-radius: 15px 15px 0 15px;
+        }
+
+        .message-agent {
+            background-color: #e9ecef;
+            color: #212529;
+            border-radius: 15px 15px 15px 0;
+        }
+
+        .message-escalated {
+            background-color: #fff3cd;
+            border: 1px solid #ffe69c;
+            color: #664d03;
+            border-radius: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header Navigation -->
+    <nav class="navbar navbar-dark bg-primary mb-3 shadow-sm">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-robot me-2"></i>Enterprise Tech Support Agent
+            </span>
+            <span class="badge bg-light text-primary">v1.0.0</span>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-fluid px-4">
+        <div class="row chat-container g-3">
+
+            <!-- Left Side: Interactive Chat Panel -->
+            <div class="col-md-7 d-flex flex-column h-100">
+                <div class="card shadow-sm flex-grow-1 d-flex flex-column">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-chat-dots me-2"></i>Support Chat Window</span>
+                        <span id="agent-status" class="badge bg-secondary">Idle</span>
+                    </div>
+
+                    <!-- Chat History Window -->
+                    <div id="chat-box" class="card-body chat-box p-3">
+                        <div class="message-agent p-3 mb-3 max-w-75">
+                            Hello! I am your technical support assistant. Paste your issue, error code, or query below.
+                        </div>
+                    </div>
+
+                    <!-- Input Box Footer -->
+                    <div class="card-footer bg-white border-top-0 p-3">
+                        <form id="query-form" class="input-group">
+                            <input type="text" id="user-input" class="form-control"
+                                placeholder="Ask about WebSphere, DB2, AIX, etc..." required>
+                            <button class="btn btn-primary" type="submit" id="submit-btn">
+                                <i class="bi bi-send me-1"></i> Send
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: RAG Context & Metadata Inspection -->
+            <div class="col-md-5 d-flex flex-column h-100">
+                <div class="card shadow-sm flex-grow-1 d-flex flex-column">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-file-earmark-text me-2"></i>Retrieved Document Context
+                    </div>
+
+                    <div id="context-box" class="card-body context-box p-3">
+                        <div class="text-muted text-center mt-5">
+                            <i class="bi bi-search display-6"></i>
+                            <p class="mt-2">Retrieved vector chunks and cross-encoder scores will appear here after
+                                asking a question.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/bootstrap.bundle.min.js"></script>
+
+    <!-- Frontend API Logic -->
+    <script>
+        const API_URL = "http://localhost:8000/query";
+        const form = document.getElementById('query-form');
+        const userInput = document.getElementById('user-input');
+        const chatBox = document.getElementById('chat-box');
+        const contextBox = document.getElementById('context-box');
+        const statusBadge = document.getElementById('agent-status');
+        const submitBtn = document.getElementById('submit-btn');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const question = userInput.value.trim();
+            if (!question) return;
+
+            // 1. Render User Message
+            appendUserMessage(question);
+            userInput.value = '';
+
+            // 2. Set Loading State
+            setLoading(true);
+
+            try {
+                // 3. Post payload to FastAPI endpoint
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: question, thread_id: "web_session" })
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const data = await response.json();
+
+                // 4. Render Agent Output and Retrieved Context
+                appendAgentMessage(data.generation, data.escalated, data.max_confidence_score);
+                renderContextChunks(data.context);
+
+            } catch (err) {
+                appendAgentMessage(`❌ Error contacting backend agent API: ${err.message}`, true, -99.0);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        function appendUserMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'd-flex justify-content-end mb-3';
+            div.innerHTML = `<div class="message-user p-3 max-w-75">${escapeHtml(text)}</div>`;
+            chatBox.appendChild(div);
+            scrollToBottom();
+        }
+
+        function appendAgentMessage(text, escalated, confidence) {
+            const div = document.createElement('div');
+            div.className = 'd-flex justify-content-start mb-3';
+
+            const badgeClass = confidence > 0.0 ? 'bg-success' : 'bg-danger';
+            const metaBadge = `<small class="badge ${badgeClass} mb-2">Confidence Score: ${confidence.toFixed(4)}</small>`;
+
+            if (escalated) {
+                div.innerHTML = `
+                    <div class="message-escalated p-3 max-w-75 w-100">
+                        ${metaBadge}
+                        <div><i class="bi bi-exclamation-triangle-fill me-2 text-warning"></i>${escapeHtml(text)}</div>
+                    </div>`;
+            } else {
+                div.innerHTML = `
+                    <div class="message-agent p-3 max-w-75">
+                        ${metaBadge}
+                        <div>${escapeHtml(text)}</div>
+                    </div>`;
+            }
+            chatBox.appendChild(div);
+            scrollToBottom();
+        }
+
+        function renderContextChunks(chunks) {
+            if (!chunks || chunks.length === 0) {
+                contextBox.innerHTML = `
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>No relevant document chunks passed the confidence threshold.
+                    </div>`;
+                return;
+            }
+
+            contextBox.innerHTML = chunks.map((chunk, idx) => `
+                <div class="card mb-3 border-light shadow-sm">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
+                        <small class="fw-bold">Doc ID: ${chunk.document_id}</small>
+                        <span class="badge bg-primary">Rerank Score: ${chunk.rerank_score.toFixed(4)}</span>
+                    </div>
+                    <div class="card-body p-2">
+                        <p class="card-text small text-secondary">${escapeHtml(chunk.content)}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                statusBadge.className = "badge bg-warning text-dark";
+                statusBadge.textContent = "Processing...";
+                submitBtn.disabled = true;
+            } else {
+                statusBadge.className = "badge bg-secondary";
+                statusBadge.textContent = "Idle";
+                submitBtn.disabled = false;
+            }
+        }
+
+        function scrollToBottom() {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/[&<>"']/g, function (m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        }
+    </script>
+</body>
+
+</html>
