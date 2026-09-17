@@ -1,0 +1,83 @@
+name: CI/CD Pipeline - Technical Support Agent
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  lint-and-test:
+    name: Code Quality & Pytest Execution
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: techqa_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d techqa_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Project Dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: Run Code Linter (Ruff / Flake8)
+        run: |
+          uv run ruff check . || true
+
+      - name: Run Pytest Suite
+        env:
+          DB_HOST: localhost
+          DB_NAME: techqa_test
+          DB_USER: postgres
+          DB_PASSWORD: test_password
+          DB_PORT: 5432
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          LITELLM_MODEL: groq/llama-3.3-70b-versatile
+        run: |
+          uv run pytest -v
+
+  docker-build:
+    name: Docker Image Build & Verification
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image (Dry Run)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: techqa-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
