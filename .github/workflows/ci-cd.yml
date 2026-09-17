@@ -2,9 +2,9 @@ name: CI/CD Pipeline - Technical Support Agent
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
 
 jobs:
   lint-and-test:
@@ -15,13 +15,13 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg17
         env:
-          POSTGRES_DB: techqa_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: techqa
+          POSTGRES_USER: ${{ secrets.DB_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.PASSWORD }}
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d techqa_test"
+          --health-cmd "pg_isready -U postgres -d techqa"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
@@ -51,12 +51,12 @@ jobs:
       - name: Run Pytest Suite
         env:
           DB_HOST: localhost
-          DB_NAME: techqa_test
-          DB_USER: postgres
-          DB_PASSWORD: test_password
+          DB_NAME: techqa
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           DB_PORT: 5432
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          LITELLM_MODEL: groq/llama-3.3-70b-versatile
+          LITELLM_MODEL: ${{ secrets.LITELLM_MODEL }}
         run: |
           uv run pytest -v
 
