@@ -16,8 +16,8 @@ jobs:
         image: pgvector/pgvector:pg17
         env:
           POSTGRES_DB: techqa
-          POSTGRES_USER: ${{ secrets.DB_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.PASSWORD }}
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test_password_123
         ports:
           - 5432:5432
         options: >-
@@ -52,11 +52,11 @@ jobs:
         env:
           DB_HOST: localhost
           DB_NAME: techqa
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_USER: postgres
+          DB_PASSWORD: test_password_123
           DB_PORT: 5432
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          LITELLM_MODEL: ${{ secrets.LITELLM_MODEL }}
+          LITELLM_MODEL: groq/llama-3.3-70b-versatile
         run: |
           uv run pytest -v
 
