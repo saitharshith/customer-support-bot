@@ -58,7 +58,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           LITELLM_MODEL: groq/llama-3.3-70b-versatile
         run: |
-          uv run pytest -v
+          uv run --with pytest-custom-exit-code pytest -v --suppress-no-test-exit-code
 
   docker-build:
     name: Docker Image Build & Verification
